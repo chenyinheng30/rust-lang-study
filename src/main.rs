@@ -1,97 +1,83 @@
-    
 fn main() {
-    let s1 = gives_ownership();         // gives_ownership 将返回值
-                                        // 转移给 s1
+  // 1.定义一个引用：
+  let s1 = String::from("hello");
 
-    let s2 = String::from("hello");     // s2 进入作用域
+  let len = calculate_length(&s1);
 
-    let s3 = takes_and_gives_back(s2);  // s2 被移动到
-                                        // takes_and_gives_back 中,
-                                        // 它也将返回值移给 s3
-    //println!("{s2},{s1}!");  //这里会编译报错m2已被移走
-    println!("{s3},{s1}!");
-} // 这里, s3 移出作用域并被丢弃。s2 也移出作用域，但已被移走，
-  // 所以什么也不会发生。s1 离开作用域并被丢弃
+  println!("1.The length of '{}' is {}.", s1, len);
 
-fn gives_ownership() -> String {             // gives_ownership 会将
-                                             // 返回值移动给
-                                             // 调用它的函数
+  // 2.为可变变量定义一个可变引用：
+  let mut s = String::from("hello");
 
-    let some_string = String::from("yours"); // some_string 进入作用域.
+  //change(&s1);
+  change(&mut s);
 
-    some_string                              // 返回 some_string 
-                                             // 并移出给调用的函数
-                                             // 
+  println!("2.{s}");
+
+  // 3.数据竞争（data race）：
+  let mut s = String::from("hello");
+
+  // 可变引用的作用域只能出现它自己。
+  // let r1 = &mut s;// 第一处可变引用
+  let r1 = &s;
+  // let r2 = &mut s;// 第二处可变引用
+  let r2 = &s;
+  //let r3=&mut s;// 第三处可变引用
+  println!("3.1.{}, {}", r1, r2);
+  // 此位置之后 r1 和 r2 不再使用
+
+  // 的作用域在 println! 最后一次使用之后结束。
+  // 非词法作用域生命周期（Non-Lexical Lifetimes，简称 NLL）：
+  //  编译器在作用域结束之前判断不再使用的引用的能力。
+  //  这里编译器认为 r1 和 r2 不再用于读取变量 s
+  let r3=&mut s;
+  println!("3.2.{}", r3);
+
+  // 4.悬垂引用（Dangling References）：
+  // let reference_to_nothing = dangle();
+  let reference_to_nothing = no_dangle();
+  println!("4.{reference_to_nothing}");
+
 }
 
-// takes_and_gives_back 将传入字符串并返回该值
-fn takes_and_gives_back(a_string: String) -> String { // a_string 进入作用域
-                                                      // 
+fn calculate_length(s: &String) -> usize {
+  s.len()
+}// 这里，s 离开了作用域。但因为它并不拥有引用值的所有权，
+  // 所以什么也不会发生
 
-    a_string  // 返回 a_string 并移出给调用的函数
+// fn change(some_string: &String) {
+//   some_string.push_str(", world");
+// }//正如变量默认是不可变的，引用也一样。（默认）不允许修改引用的值。
+fn change(some_string: &mut String) {
+  some_string.push_str(", world");
 }
 
-//////////////////////////////////////////////////////////////////////////////////////////////
-// 栈与堆：                                                                                 //
-// 1. 栈以放入值的顺序存储值并以相反顺序取出值。这也被称作 后进先出（last in, first out）。 //
-// 2. 堆是缺乏组织的：当向堆放入数据时，你要请求一定大小的空间。                            //
-//     内存分配器（memory allocator）在堆的某处找到一块足够大的空位，                       //
-//     把它标记为已使用，并返回一个表示该位置地址的 指针（pointer）。                       //
-// 内存回收：                                                                               //
-// 1. 如果忘记回收了会浪费内存。                                                            //
-// 2. 如果过早回收了，将会出现无效变量。                                                    //
-// 3. 如果重复回收，这也是个 bug。                                                          //
-// 所有权：                                                                                 //
-// 1. Rust 中的每一个值都有一个被称为其 所有者（owner）的变量。                             //
-// 2. 值在任一时刻有且只有一个所有者。                                                      //
-// 3. 当所有者（变量）离开作用域，这个值将被丢弃。                                          //
-// 作用域：                                                                                 //
-// 作用域是一个项（item）在程序中有效的范围。                                               //
-// 当 s 离开作用域的时候。当变量离开作用域，Rust 为我们调用一个特殊的函数。                 //
-//  这个函数叫做 drop，在这里 String 的作者可以放置释放内存的代码。                         //
-//  CODE：                                                                                  //
-//  {                      // s 在这里无效, 它尚未声明                                      //
-//      let s = "hello";   // 从此处起，s 是有效的                                          //
-//      // 使用 s                                                                           //
-//  }                      // 此作用域已结束，s 不再有效                                    //
-// 变量与数据交互的方式：                                                                   //
-//  1.移动：                                                                                //
-//  类似c++的move，实际上是只拷贝栈中的内容。                                               //
-//   CODE:                                                                                  //
-//   fn main() {                                                                            //
-//      let s1 = String::from("hello");                                                     //
-//      let s2 = s1;                                                                        //
-//      println!("{}, world!", s1);                                                         //
-//   }                                                                                      //
-//   以上代码无法通过编译：                                                                 //
-//   error[E0382]: borrow of moved value: `s1`                                              //
-//  2.克隆：                                                                                //
-//   CODE:                                                                                  //
-//   fn main() {                                                                            //
-//      let s1 = String::from("hello");                                                     //
-//      let s2 = s1.clone();                                                                //
-//      println!("s1 = {}, s2 = {}", s1, s2);                                               //
-//   }                                                                                      //
-//  以上代码会发生内存堆中的拷贝，会使效率减慢。                                            //
-//  只在栈上的数据————拷贝：                                                                //
-//   CODE:                                                                                  //
-//   fn main() {                                                                            //
-//      let x = 5;                                                                          //
-//      let y = x;                                                                          //
-//      println!("x = {}, y = {}", x, y);                                                   //
-//   }                                                                                      //
-//  以上代码没有调用 clone，不过 x 依然有效且没有被移动到 y 中。                            //
-//   原因是像整型这样的在编译时已知大小的类型被整个存储在栈上，                             //
-//   所以拷贝其实际的值是快速的。这意味着没有理由在创建变量 y 后使 x 无效。                 //
-//   换句话说，这里没有深浅拷贝的区别，所以这里调用 clone                                   //
-//   并不会与通常的浅拷贝有什么不同，我们可以不用管它。                                     //
-//  Rust 有一个叫做 Copy trait 的特殊注解，可以用在类似整型这样的存储在栈上的类型上（第十章 //
-//   详细讲解 trait）。如果一个类型实现了 Copy trait，那么一个旧的变量在将其赋值给其他变量后//
-//   仍然可用。Rust 不允许自身或其任何部分实现了 Drop trait 的类型使用 Copy trait。如果我们 //
-//   对其值离开作用域时需要特殊处理的类型使用 Copy 注解，将会出现一个编译时错误。要学习如何 //
-//   为你的类型添加 Copy 注解以实现该 trait，请阅读附录 C 中的 “可派生的 trait”。           //
-//  这个使用 Copy 注解的类型应该完全在栈上。                                                //
-// 所有权与函数：                                                                           //
-// 返回值与作用域:                                                                          //
-//////////////////////////////////////////////////////////////////////////////////////////////
+// fn dangle() -> &String { // dangle 返回一个字符串的引用
+// 
+//   let s = String::from("hello"); // s 是一个新字符串
+// 
+//   &s // 返回字符串 s 的引用
+// } // 这里 s 离开作用域并被丢弃。其内存被释放。
+// // 危险！
+fn no_dangle() -> String {
+  let s = String::from("hello");
 
+  s
+}
+
+//////////////////////////////////////////////////////////////////////////////
+// 引用与借用：                                                             //
+// 引用（reference）像一个指针，因为它是一个地址，我们可以由此访问储存于该  //
+//  地址的属于其他变量的数据。与指针不同，引用确保指向某个特定类型的有效值。//
+// 引用（默认）不允许修改引用的值。                                         //
+// 数据竞争（data race）类似于竞态条件，它可由这三个行为造成：              //
+//  1.两个或更多指针同时访问同一数据。                                      //
+//  2.至少有一个指针被用来写入数据。                                        //
+//  3.没有同步数据访问的机制。                                              //
+// 非词法作用域生命周期（Non-Lexical Lifetimes，简称 NLL）：                //
+//  编译器在作用域结束之前判断不再使用的引用的能力。                        //
+// 悬垂指针（dangling pointer）：                                           //
+//  在具有指针的语言中，很容易通过释放内存时保留指向它的指针而错误地生成一  //
+//  个 悬垂指针（dangling pointer），所谓悬垂指针是其指向的内存可能已经被分 //
+//  配给其它持有者。                                                        //
+//////////////////////////////////////////////////////////////////////////////
